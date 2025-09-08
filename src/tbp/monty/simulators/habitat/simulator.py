@@ -203,7 +203,7 @@ class HabitatSim(HabitatActuator):
         agent_index = self._agent_id_to_index[agent_id]
         self._sim.initialize_agent(agent_index, agent_state)
 
-    def remove_all_objects(self):
+    def remove_all_objects(self) -> None:
         """Remove all objects from simulated environment."""
         rigid_mgr = self._sim.get_rigid_object_manager()
         rigid_mgr.remove_all_objects()

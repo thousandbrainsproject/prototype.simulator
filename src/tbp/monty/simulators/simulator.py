@@ -28,7 +28,7 @@ class Simulator(Protocol):
         """Update agent runtime state."""
         ...
 
-    def remove_all_objects(self):
+    def remove_all_objects(self) -> None:
         """Remove all objects from the simulated environment."""
         ...
 
