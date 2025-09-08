@@ -191,7 +191,7 @@ class HabitatSim(HabitatActuator):
         for agent in self._agents:
             agent.initialize(self)
 
-    def initialize_agent(self, agent_id, agent_state):
+    def initialize_agent(self, agent_id, agent_state) -> None:
         """Update agent runtime state.
 
         Usually called first thing to update agent initial pose.
