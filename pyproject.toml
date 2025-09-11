@@ -80,6 +80,7 @@ dev = [
     'grpcio',
     'grpcio-tools',
     'protobuf',
+    'grpcio-reflection',
 ]
 generate_api_docs_tool = [
     'docutils>=0.17',
