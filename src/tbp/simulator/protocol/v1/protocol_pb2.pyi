@@ -97,12 +97,12 @@ class AgentObservations(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: int
+        key: str
         value: SensorObservations
-        def __init__(self, key: _Optional[int] = ..., value: _Optional[_Union[SensorObservations, _Mapping]] = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[SensorObservations, _Mapping]] = ...) -> None: ...
     ENTRIES_FIELD_NUMBER: _ClassVar[int]
-    entries: _containers.MessageMap[int, SensorObservations]
-    def __init__(self, entries: _Optional[_Mapping[int, SensorObservations]] = ...) -> None: ...
+    entries: _containers.MessageMap[str, SensorObservations]
+    def __init__(self, entries: _Optional[_Mapping[str, SensorObservations]] = ...) -> None: ...
 
 class Observations(_message.Message):
     __slots__ = ("entries",)
@@ -110,12 +110,12 @@ class Observations(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: int
+        key: str
         value: AgentObservations
-        def __init__(self, key: _Optional[int] = ..., value: _Optional[_Union[AgentObservations, _Mapping]] = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[AgentObservations, _Mapping]] = ...) -> None: ...
     ENTRIES_FIELD_NUMBER: _ClassVar[int]
-    entries: _containers.MessageMap[int, AgentObservations]
-    def __init__(self, entries: _Optional[_Mapping[int, AgentObservations]] = ...) -> None: ...
+    entries: _containers.MessageMap[str, AgentObservations]
+    def __init__(self, entries: _Optional[_Mapping[str, AgentObservations]] = ...) -> None: ...
 
 class SensorState(_message.Message):
     __slots__ = ("position", "rotation")
@@ -131,18 +131,18 @@ class AgentState(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: int
+        key: str
         value: SensorState
-        def __init__(self, key: _Optional[int] = ..., value: _Optional[_Union[SensorState, _Mapping]] = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[SensorState, _Mapping]] = ...) -> None: ...
     SENSORS_FIELD_NUMBER: _ClassVar[int]
     POSITION_FIELD_NUMBER: _ClassVar[int]
     ROTATION_FIELD_NUMBER: _ClassVar[int]
     MOTOR_ONLY_STEP_FIELD_NUMBER: _ClassVar[int]
-    sensors: _containers.MessageMap[int, SensorState]
+    sensors: _containers.MessageMap[str, SensorState]
     position: VectorXYZ
     rotation: QuaternionWXYZ
     motor_only_step: bool
-    def __init__(self, sensors: _Optional[_Mapping[int, SensorState]] = ..., position: _Optional[_Union[VectorXYZ, _Mapping]] = ..., rotation: _Optional[_Union[QuaternionWXYZ, _Mapping]] = ..., motor_only_step: bool = ...) -> None: ...
+    def __init__(self, sensors: _Optional[_Mapping[str, SensorState]] = ..., position: _Optional[_Union[VectorXYZ, _Mapping]] = ..., rotation: _Optional[_Union[QuaternionWXYZ, _Mapping]] = ..., motor_only_step: bool = ...) -> None: ...
 
 class ProprioceptiveState(_message.Message):
     __slots__ = ("entries",)
@@ -150,12 +150,12 @@ class ProprioceptiveState(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
         VALUE_FIELD_NUMBER: _ClassVar[int]
-        key: int
+        key: str
         value: AgentState
-        def __init__(self, key: _Optional[int] = ..., value: _Optional[_Union[AgentState, _Mapping]] = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[_Union[AgentState, _Mapping]] = ...) -> None: ...
     ENTRIES_FIELD_NUMBER: _ClassVar[int]
-    entries: _containers.MessageMap[int, AgentState]
-    def __init__(self, entries: _Optional[_Mapping[int, AgentState]] = ...) -> None: ...
+    entries: _containers.MessageMap[str, AgentState]
+    def __init__(self, entries: _Optional[_Mapping[str, AgentState]] = ...) -> None: ...
 
 class StepResponse(_message.Message):
     __slots__ = ("observations", "proprioceptive_state")

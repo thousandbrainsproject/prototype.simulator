@@ -62,11 +62,11 @@ message SensorObservations {
 }
 
 message AgentObservations {
-  map<uint64, SensorObservations> entries = 1;
+  map<string, SensorObservations> entries = 1;
 }
 
 message Observations {
-  map<uint64, AgentObservations> entries = 1;
+  map<string, AgentObservations> entries = 1;
 }
 
 message SensorState {
@@ -75,14 +75,14 @@ message SensorState {
 }
 
 message AgentState {
-  map<uint64, SensorState> sensors = 1;
+  map<string, SensorState> sensors = 1;
   VectorXYZ position = 2;
   QuaternionWXYZ rotation = 3;
   optional bool motor_only_step = 4;
 }
 
 message ProprioceptiveState {
-  map<uint64, AgentState> entries = 1;
+  map<string, AgentState> entries = 1;
 }
 
 message StepResponse {
