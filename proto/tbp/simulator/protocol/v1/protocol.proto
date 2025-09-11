@@ -51,14 +51,14 @@ message StepRequest {
 }
 
 message SensorObservations {
-  bytes rgba = 1;
-  bytes depth = 2;
-  bytes semantic = 3;
-  bytes semantic_3d = 4;
-  bytes sensor_frame_data = 5;
-  bytes world_camera = 6;
-  bytes pixel_loc = 7;
-  bytes raw = 8;
+  bytes raw = 1;
+  bytes rgba = 2;
+  bytes depth = 3;
+  bytes semantic = 4;
+  bytes semantic_3d = 5;
+  bytes sensor_frame_data = 6;
+  bytes world_camera = 7;
+  bytes pixel_loc = 8;
 }
 
 message AgentObservations {

@@ -78,6 +78,7 @@ dev = [
     # Python linter and formatter
     'ruff==0.11.4',
     'grpcio',
+    'grpcio-tools',
     'protobuf',
 ]
 generate_api_docs_tool = [
