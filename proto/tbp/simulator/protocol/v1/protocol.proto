@@ -50,39 +50,45 @@ message StepRequest {
   Action action = 1;
 }
 
-message SensorObservations {
-  bytes raw = 1;
-  bytes rgba = 2;
-  bytes depth = 3;
-  bytes semantic = 4;
-  bytes semantic_3d = 5;
-  bytes sensor_frame_data = 6;
-  bytes world_camera = 7;
-  bytes pixel_loc = 8;
-}
-
-message AgentObservations {
-  map<string, SensorObservations> entries = 1;
-}
-
 message Observations {
-  map<string, AgentObservations> entries = 1;
-}
+  message AgentObservation {
+    string agent_id = 1;
 
-message SensorState {
-  VectorXYZ position = 1;
-  QuaternionWXYZ rotation = 2;
-}
+    message SensorObservation {
+        string sensor_id = 1;
+        optional bytes raw = 2;
+        optional bytes rgba = 3;
+        optional bytes depth = 4;
+        optional bytes semantic = 5;
+        optional bytes semantic_3d = 6;
+        optional bytes sensor_frame_data = 7;
+        optional bytes world_camera = 8;
+        optional bytes pixel_loc = 9;
+    }
 
-message AgentState {
-  map<string, SensorState> sensors = 1;
-  VectorXYZ position = 2;
-  QuaternionWXYZ rotation = 3;
-  optional bool motor_only_step = 4;
+    repeated SensorObservation sensor_observations = 2;
+  }
+
+  repeated AgentObservation agent_observations = 1;
 }
 
 message ProprioceptiveState {
-  map<string, AgentState> entries = 1;
+  message AgentState {
+    string agent_id = 1;
+    VectorXYZ position = 2;
+    QuaternionWXYZ rotation = 3;
+    optional bool motor_only_step = 4;
+
+    message SensorState {
+      string sensor_id = 1;
+      VectorXYZ position = 2;
+      QuaternionWXYZ rotation = 3;
+    }
+
+    repeated SensorState sensor_states = 5;
+  }
+
+  repeated AgentState agent_states = 1;
 }
 
 message StepResponse {
