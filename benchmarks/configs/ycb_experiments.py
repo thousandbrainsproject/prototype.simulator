@@ -7,10 +7,12 @@
 # Use of this source code is governed by the MIT
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
+from __future__ import annotations
 
 import copy
 import os
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
+from typing import Callable, Dict, Union
 
 import numpy as np
 
@@ -43,11 +45,18 @@ from tbp.monty.frameworks.config_utils.make_dataset_configs import (
     EnvironmentDataloaderPerObjectArgs,
     EvalExperimentArgs,
     ExperimentArgs,
+    ObjectParams,
+    PatchAndViewFinderMountConfig,
     PredefinedObjectInitializer,
     RandomRotationObjectInitializer,
     get_object_names_by_idx,
 )
+from tbp.monty.frameworks.environment_utils.transforms import (
+    DepthTo3DLocations,
+    MissingToMaxDepth,
+)
 from tbp.monty.frameworks.environments import embodied_data as ED
+from tbp.monty.frameworks.environments.embodied_environment import VectorXYZ
 from tbp.monty.frameworks.environments.ycb import (
     DISTINCT_OBJECTS,
     SIMILAR_OBJECTS,
@@ -63,13 +72,7 @@ from tbp.monty.frameworks.models.sensor_modules import (
     DetailedLoggingSM,
     FeatureChangeSM,
 )
-from tbp.monty.simulators.habitat.configs import (
-    FiveLMMountHabitatDatasetArgs,
-    NoisySurfaceViewFinderMountHabitatDatasetArgs,
-    PatchViewFinderMountHabitatDatasetArgs,
-    PatchViewFinderMultiObjectMountHabitatDatasetArgs,
-    SurfaceViewFinderMountHabitatDatasetArgs,
-)
+from tbp.monty.simulators.habitat.environment import HabitatEnvironment
 
 """
 (all use surface-agent models with 0.01 min dist and 64x64 resolution,
@@ -249,6 +252,46 @@ default_5sm_config = dict(
     ),
 )
 
+@dataclass
+class EnvInitArgs:
+    """Args for :class:`HabitatEnvironment`."""
+
+    agents: list = field(default_factory=list)
+    objects: list[dict] = field(
+        default_factory=lambda: [
+            ObjectParams(
+                name="coneSolid", position=VectorXYZ((0.0, 1.5, -0.1))
+            ).as_dict()
+        ]
+    )
+    scene_id: Union[str, None] = field(default=None)
+    seed: int = field(default=42)
+    data_path: str = os.path.join(os.environ["MONTY_DATA"], "habitat/objects/ycb")
+
+
+@dataclass
+class PatchViewFinderMountHabitatDatasetArgs:
+    env_init_func: Callable = field(default=HabitatEnvironment)
+    env_init_args: Dict = field(default_factory=lambda: EnvInitArgs().__dict__)
+    transform: Union[Callable, list, None] = None
+    rng: Union[Callable, None] = None
+
+    def __post_init__(self):
+        self.transform = [
+            MissingToMaxDepth(agent_id="agent_id_0", max_depth=1),
+            DepthTo3DLocations(
+                # FIXME: DEMO HARDCODE
+                agent_id="agent_id_0",
+                sensor_ids=["patch", "view_finder"],
+                resolutions=[[64, 64], [64, 64]],
+                world_coord=True,
+                zooms=[10.0, 1.0],
+                get_all_points=True,
+                use_semantic_sensor=False,
+            ),
+        ]
+
+
 base_config_10distinctobj_dist_agent = dict(
     experiment_class=MontyObjectRecognitionExperiment,
     experiment_args=EvalExperimentArgs(
@@ -274,191 +317,191 @@ base_config_10distinctobj_dist_agent = dict(
     ),
 )
 
-base_config_10distinctobj_surf_agent = copy.deepcopy(
-    base_config_10distinctobj_dist_agent
-)
-base_config_10distinctobj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10distinctobj,
-        n_eval_epochs=len(test_rotations_all),
-        max_total_steps=5000,  # x4 max_eval_steps for surface-policy, x2.5 for
-        # feature-change SM
-    ),
-    monty_config=SurfaceAndViewSOTAMontyConfig(
-        learning_module_configs=lower_max_nneighbors_surf_1lm_config,
-        motor_system_config=MotorSystemConfigCurInformedSurfaceGoalStateDriven(),
-        monty_args=MontyArgs(min_eval_steps=min_eval_steps),
-    ),
-    dataset_args=SurfaceViewFinderMountHabitatDatasetArgs(),
-)
+# base_config_10distinctobj_surf_agent = copy.deepcopy(
+#     base_config_10distinctobj_dist_agent
+# )
+# base_config_10distinctobj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10distinctobj,
+#         n_eval_epochs=len(test_rotations_all),
+#         max_total_steps=5000,  # x4 max_eval_steps for surface-policy, x2.5 for
+#         # feature-change SM
+#     ),
+#     monty_config=SurfaceAndViewSOTAMontyConfig(
+#         learning_module_configs=lower_max_nneighbors_surf_1lm_config,
+#         motor_system_config=MotorSystemConfigCurInformedSurfaceGoalStateDriven(),
+#         monty_args=MontyArgs(min_eval_steps=min_eval_steps),
+#     ),
+#     dataset_args=SurfaceViewFinderMountHabitatDatasetArgs(),
+# )
 
-randrot_noise_10distinctobj_dist_agent = copy.deepcopy(
-    base_config_10distinctobj_dist_agent
-)
-randrot_noise_10distinctobj_dist_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10distinctobj,
-        n_eval_epochs=10,  # number of random rotations to test for each object
-    ),
-    monty_config=PatchAndViewSOTAMontyConfig(
-        sensor_module_configs=dict(
-            sensor_module_0=default_all_noisy_sensor_module,
-            sensor_module_1=dict(
-                sensor_module_class=DetailedLoggingSM,
-                sensor_module_args=dict(
-                    sensor_module_id="view_finder",
-                    save_raw_obs=True,
-                ),
-            ),
-        ),
-        learning_module_configs=default_evidence_1lm_config,
-        monty_args=MontyArgs(min_eval_steps=min_eval_steps),
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_noise_10distinctobj_dist_agent = copy.deepcopy(
+#     base_config_10distinctobj_dist_agent
+# )
+# randrot_noise_10distinctobj_dist_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10distinctobj,
+#         n_eval_epochs=10,  # number of random rotations to test for each object
+#     ),
+#     monty_config=PatchAndViewSOTAMontyConfig(
+#         sensor_module_configs=dict(
+#             sensor_module_0=default_all_noisy_sensor_module,
+#             sensor_module_1=dict(
+#                 sensor_module_class=DetailedLoggingSM,
+#                 sensor_module_args=dict(
+#                     sensor_module_id="view_finder",
+#                     save_raw_obs=True,
+#                 ),
+#             ),
+#         ),
+#         learning_module_configs=default_evidence_1lm_config,
+#         monty_args=MontyArgs(min_eval_steps=min_eval_steps),
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-# NOTE: This experiment can reach a higher accuracy when using a 10% TH.
-randrot_noise_10distinctobj_dist_on_distm = copy.deepcopy(
-    randrot_noise_10distinctobj_dist_agent
-)
-randrot_noise_10distinctobj_dist_on_distm.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=dist_agent_model_path_10distinctobj,
-        n_eval_epochs=10,
-    ),
-)
+# # NOTE: This experiment can reach a higher accuracy when using a 10% TH.
+# randrot_noise_10distinctobj_dist_on_distm = copy.deepcopy(
+#     randrot_noise_10distinctobj_dist_agent
+# )
+# randrot_noise_10distinctobj_dist_on_distm.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=dist_agent_model_path_10distinctobj,
+#         n_eval_epochs=10,
+#     ),
+# )
 
-randrot_noise_10distinctobj_surf_agent = copy.deepcopy(
-    randrot_noise_10distinctobj_dist_agent
-)
-randrot_noise_10distinctobj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10distinctobj,
-        n_eval_epochs=10,
-        max_total_steps=5000,  # x4 max_eval_steps for surface-policy, x2.5 for
-        # feature-change SM
-    ),
-    monty_config=SurfaceAndViewSOTAMontyConfig(
-        sensor_module_configs=dict(
-            sensor_module_0=default_all_noisy_surf_agent_sensor_module,
-            sensor_module_1=dict(
-                sensor_module_class=DetailedLoggingSM,
-                sensor_module_args=dict(
-                    sensor_module_id="view_finder",
-                    save_raw_obs=True,
-                ),
-            ),
-        ),
-        learning_module_configs=default_evidence_surf_1lm_config,
-        motor_system_config=MotorSystemConfigCurInformedSurfaceGoalStateDriven(),
-        monty_args=MontyArgs(min_eval_steps=min_eval_steps),
-    ),
-    dataset_args=SurfaceViewFinderMountHabitatDatasetArgs(),
-)
+# randrot_noise_10distinctobj_surf_agent = copy.deepcopy(
+#     randrot_noise_10distinctobj_dist_agent
+# )
+# randrot_noise_10distinctobj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10distinctobj,
+#         n_eval_epochs=10,
+#         max_total_steps=5000,  # x4 max_eval_steps for surface-policy, x2.5 for
+#         # feature-change SM
+#     ),
+#     monty_config=SurfaceAndViewSOTAMontyConfig(
+#         sensor_module_configs=dict(
+#             sensor_module_0=default_all_noisy_surf_agent_sensor_module,
+#             sensor_module_1=dict(
+#                 sensor_module_class=DetailedLoggingSM,
+#                 sensor_module_args=dict(
+#                     sensor_module_id="view_finder",
+#                     save_raw_obs=True,
+#                 ),
+#             ),
+#         ),
+#         learning_module_configs=default_evidence_surf_1lm_config,
+#         motor_system_config=MotorSystemConfigCurInformedSurfaceGoalStateDriven(),
+#         monty_args=MontyArgs(min_eval_steps=min_eval_steps),
+#     ),
+#     dataset_args=SurfaceViewFinderMountHabitatDatasetArgs(),
+# )
 
-randrot_10distinctobj_surf_agent = copy.deepcopy(base_config_10distinctobj_surf_agent)
-randrot_10distinctobj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10distinctobj,
-        n_eval_epochs=10,
-        max_total_steps=5000,
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_10distinctobj_surf_agent = copy.deepcopy(base_config_10distinctobj_surf_agent)
+# randrot_10distinctobj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10distinctobj,
+#         n_eval_epochs=10,
+#         max_total_steps=5000,
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-randrot_noise_10distinctobj_5lms_dist_agent = copy.deepcopy(
-    randrot_noise_10distinctobj_dist_agent
-)
-randrot_noise_10distinctobj_5lms_dist_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_5lms_10distinctobj,
-        n_eval_epochs=10,
-        min_lms_match=3,
-    ),
-    monty_config=FiveLMMontySOTAConfig(
-        monty_class=MontyForEvidenceGraphMatching,  # has custom evidence voting method
-        learning_module_configs=default_5lm_lmconfig,
-        sensor_module_configs=default_5sm_config,
-        monty_args=MontyArgs(min_eval_steps=min_eval_steps),
-    ),
-    dataset_args=FiveLMMountHabitatDatasetArgs(),
-)
+# randrot_noise_10distinctobj_5lms_dist_agent = copy.deepcopy(
+#     randrot_noise_10distinctobj_dist_agent
+# )
+# randrot_noise_10distinctobj_5lms_dist_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_5lms_10distinctobj,
+#         n_eval_epochs=10,
+#         min_lms_match=3,
+#     ),
+#     monty_config=FiveLMMontySOTAConfig(
+#         monty_class=MontyForEvidenceGraphMatching,  # has custom evidence voting method
+#         learning_module_configs=default_5lm_lmconfig,
+#         sensor_module_configs=default_5sm_config,
+#         monty_args=MontyArgs(min_eval_steps=min_eval_steps),
+#     ),
+#     dataset_args=FiveLMMountHabitatDatasetArgs(),
+# )
 
-base_10simobj_surf_agent = copy.deepcopy(base_config_10distinctobj_surf_agent)
-base_10simobj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10simobj,
-        n_eval_epochs=len(test_rotations_all),
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
-        object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_all),
-    ),
-)
+# base_10simobj_surf_agent = copy.deepcopy(base_config_10distinctobj_surf_agent)
+# base_10simobj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10simobj,
+#         n_eval_epochs=len(test_rotations_all),
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
+#         object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_all),
+#     ),
+# )
 
-randrot_noise_10simobj_surf_agent = copy.deepcopy(
-    randrot_noise_10distinctobj_surf_agent
-)
-randrot_noise_10simobj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10simobj,
-        n_eval_epochs=10,  # number of random rotations to test for each object
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_noise_10simobj_surf_agent = copy.deepcopy(
+#     randrot_noise_10distinctobj_surf_agent
+# )
+# randrot_noise_10simobj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10simobj,
+#         n_eval_epochs=10,  # number of random rotations to test for each object
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-randrot_noise_10simobj_dist_agent = copy.deepcopy(
-    randrot_noise_10distinctobj_dist_agent
-)
-randrot_noise_10simobj_dist_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_10simobj,
-        n_eval_epochs=10,  # number of random rotations to test for each object
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_noise_10simobj_dist_agent = copy.deepcopy(
+#     randrot_noise_10distinctobj_dist_agent
+# )
+# randrot_noise_10simobj_dist_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_10simobj,
+#         n_eval_epochs=10,  # number of random rotations to test for each object
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-randomrot_rawnoise_10distinctobj_surf_agent = copy.deepcopy(
-    randrot_noise_10distinctobj_surf_agent
-)
-randomrot_rawnoise_10distinctobj_surf_agent.update(
-    dataset_args=NoisySurfaceViewFinderMountHabitatDatasetArgs(),
-)
+# randomrot_rawnoise_10distinctobj_surf_agent = copy.deepcopy(
+#     randrot_noise_10distinctobj_surf_agent
+# )
+# randomrot_rawnoise_10distinctobj_surf_agent.update(
+#     dataset_args=NoisySurfaceViewFinderMountHabitatDatasetArgs(),
+# )
 
-# Experiment with multiple (distractor objects)
-base_10multi_distinctobj_dist_agent = copy.deepcopy(
-    base_config_10distinctobj_dist_agent
-)
-base_10multi_distinctobj_dist_agent.update(
-    # Agent is farther from object and takes larger steps to increase chance of
-    # landing on other objects; uses hypothesis-testing policy (which may also cause
-    # it to land on other objects)
-    monty_config=PatchAndViewFartherAwaySOTAMontyConfig(
-        learning_module_configs=lower_max_nneighbors_1lm_config,
-        monty_args=MontyArgs(min_eval_steps=min_eval_steps),
-    ),
-    dataset_args=PatchViewFinderMultiObjectMountHabitatDatasetArgs(),
-    eval_dataloader_args=EnvironmentDataloaderMultiObjectArgs(
-        object_names=dict(
-            targets_list=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
-            source_object_list=DISTINCT_OBJECTS,
-            num_distractors=10,  # Number of other objects added to the environment
-        ),
-        object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_all),
-    ),
-)
+# # Experiment with multiple (distractor objects)
+# base_10multi_distinctobj_dist_agent = copy.deepcopy(
+#     base_config_10distinctobj_dist_agent
+# )
+# base_10multi_distinctobj_dist_agent.update(
+#     # Agent is farther from object and takes larger steps to increase chance of
+#     # landing on other objects; uses hypothesis-testing policy (which may also cause
+#     # it to land on other objects)
+#     monty_config=PatchAndViewFartherAwaySOTAMontyConfig(
+#         learning_module_configs=lower_max_nneighbors_1lm_config,
+#         monty_args=MontyArgs(min_eval_steps=min_eval_steps),
+#     ),
+#     dataset_args=PatchViewFinderMultiObjectMountHabitatDatasetArgs(),
+#     eval_dataloader_args=EnvironmentDataloaderMultiObjectArgs(
+#         object_names=dict(
+#             targets_list=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
+#             source_object_list=DISTINCT_OBJECTS,
+#             num_distractors=10,  # Number of other objects added to the environment
+#         ),
+#         object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_all),
+#     ),
+# )
 
 # ----- Learning Unsupervised -----
 
@@ -499,161 +542,161 @@ default_lfs_lm = dict(
 # NOTE: Using the MotorSystemConfigCurvatureInformedSurface does not work so well
 # in this setting and currently leads to more confused objects.
 
-surf_agent_unsupervised_10distinctobj = copy.deepcopy(
-    base_config_10distinctobj_dist_agent
-)
-surf_agent_unsupervised_10distinctobj.update(
-    experiment_args=ExperimentArgs(
-        do_eval=False,
-        n_train_epochs=10,
-        max_train_steps=4000,
-        max_total_steps=4000,
-    ),
-    logging_config=CSVLoggingConfig(python_log_level="INFO"),
-    monty_config=SurfaceAndViewMontyConfig(
-        monty_args=MontyArgs(num_exploratory_steps=1000, min_train_steps=100),
-        learning_module_configs=default_lfs_lm,
-    ),
-    dataset_args=SurfaceViewFinderMountHabitatDatasetArgs(),
-    train_dataloader_class=ED.InformedEnvironmentDataLoader,
-    train_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# surf_agent_unsupervised_10distinctobj = copy.deepcopy(
+#     base_config_10distinctobj_dist_agent
+# )
+# surf_agent_unsupervised_10distinctobj.update(
+#     experiment_args=ExperimentArgs(
+#         do_eval=False,
+#         n_train_epochs=10,
+#         max_train_steps=4000,
+#         max_total_steps=4000,
+#     ),
+#     logging_config=CSVLoggingConfig(python_log_level="INFO"),
+#     monty_config=SurfaceAndViewMontyConfig(
+#         monty_args=MontyArgs(num_exploratory_steps=1000, min_train_steps=100),
+#         learning_module_configs=default_lfs_lm,
+#     ),
+#     dataset_args=SurfaceViewFinderMountHabitatDatasetArgs(),
+#     train_dataloader_class=ED.InformedEnvironmentDataLoader,
+#     train_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=DISTINCT_OBJECTS),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-surf_agent_unsupervised_10distinctobj_noise = copy.deepcopy(
-    surf_agent_unsupervised_10distinctobj
-)
-surf_agent_unsupervised_10distinctobj_noise.update(
-    monty_config=SurfaceAndViewMontyConfig(
-        monty_args=MontyArgs(num_exploratory_steps=1000, min_train_steps=100),
-        sensor_module_configs=dict(
-            sensor_module_0=default_all_noisy_surf_agent_sensor_module,
-            sensor_module_1=dict(
-                sensor_module_class=DetailedLoggingSM,
-                sensor_module_args=dict(
-                    sensor_module_id="view_finder",
-                    save_raw_obs=True,
-                ),
-            ),
-        ),
-        learning_module_configs=default_lfs_lm,
-    )
-)
+# surf_agent_unsupervised_10distinctobj_noise = copy.deepcopy(
+#     surf_agent_unsupervised_10distinctobj
+# )
+# surf_agent_unsupervised_10distinctobj_noise.update(
+#     monty_config=SurfaceAndViewMontyConfig(
+#         monty_args=MontyArgs(num_exploratory_steps=1000, min_train_steps=100),
+#         sensor_module_configs=dict(
+#             sensor_module_0=default_all_noisy_surf_agent_sensor_module,
+#             sensor_module_1=dict(
+#                 sensor_module_class=DetailedLoggingSM,
+#                 sensor_module_args=dict(
+#                     sensor_module_id="view_finder",
+#                     save_raw_obs=True,
+#                 ),
+#             ),
+#         ),
+#         learning_module_configs=default_lfs_lm,
+#     )
+# )
 
-surf_agent_unsupervised_10simobj = copy.deepcopy(surf_agent_unsupervised_10distinctobj)
-surf_agent_unsupervised_10simobj.update(
-    train_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# surf_agent_unsupervised_10simobj = copy.deepcopy(surf_agent_unsupervised_10distinctobj)
+# surf_agent_unsupervised_10simobj.update(
+#     train_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(0, 10, object_list=SIMILAR_OBJECTS),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-# --------- Long Runs ----------------
+# # --------- Long Runs ----------------
 
-base_77obj_dist_agent = copy.deepcopy(base_config_10distinctobj_dist_agent)
-base_77obj_dist_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_1lm_77obj,
-        n_eval_epochs=len(test_rotations_3),
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(
-            0,
-            77,
-        ),
-        object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_3),
-    ),
-)
+# base_77obj_dist_agent = copy.deepcopy(base_config_10distinctobj_dist_agent)
+# base_77obj_dist_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_1lm_77obj,
+#         n_eval_epochs=len(test_rotations_3),
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(
+#             0,
+#             77,
+#         ),
+#         object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_3),
+#     ),
+# )
 
-base_77obj_surf_agent = copy.deepcopy(base_config_10distinctobj_surf_agent)
-base_77obj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_1lm_77obj,
-        n_eval_epochs=len(test_rotations_3),
-        max_total_steps=5000,
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(
-            0,
-            77,
-        ),
-        object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_3),
-    ),
-)
+# base_77obj_surf_agent = copy.deepcopy(base_config_10distinctobj_surf_agent)
+# base_77obj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_1lm_77obj,
+#         n_eval_epochs=len(test_rotations_3),
+#         max_total_steps=5000,
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(
+#             0,
+#             77,
+#         ),
+#         object_init_sampler=PredefinedObjectInitializer(rotations=test_rotations_3),
+#     ),
+# )
 
-randrot_noise_77obj_surf_agent = copy.deepcopy(randrot_noise_10distinctobj_surf_agent)
-randrot_noise_77obj_surf_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_1lm_77obj,
-        n_eval_epochs=3,
-        max_total_steps=5000,
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(
-            0,
-            77,
-        ),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_noise_77obj_surf_agent = copy.deepcopy(randrot_noise_10distinctobj_surf_agent)
+# randrot_noise_77obj_surf_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_1lm_77obj,
+#         n_eval_epochs=3,
+#         max_total_steps=5000,
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(
+#             0,
+#             77,
+#         ),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-randrot_noise_77obj_dist_agent = copy.deepcopy(randrot_noise_10distinctobj_dist_agent)
-randrot_noise_77obj_dist_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_1lm_77obj,
-        n_eval_epochs=3,
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(
-            0,
-            77,
-        ),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_noise_77obj_dist_agent = copy.deepcopy(randrot_noise_10distinctobj_dist_agent)
+# randrot_noise_77obj_dist_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_1lm_77obj,
+#         n_eval_epochs=3,
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(
+#             0,
+#             77,
+#         ),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
-randrot_noise_77obj_5lms_dist_agent = copy.deepcopy(
-    randrot_noise_10distinctobj_5lms_dist_agent
-)
-randrot_noise_77obj_5lms_dist_agent.update(
-    experiment_args=EvalExperimentArgs(
-        model_name_or_path=model_path_5lms_77obj,
-        n_eval_epochs=1,
-        min_lms_match=3,
-    ),
-    eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
-        object_names=get_object_names_by_idx(
-            0,
-            77,
-        ),
-        object_init_sampler=RandomRotationObjectInitializer(),
-    ),
-)
+# randrot_noise_77obj_5lms_dist_agent = copy.deepcopy(
+#     randrot_noise_10distinctobj_5lms_dist_agent
+# )
+# randrot_noise_77obj_5lms_dist_agent.update(
+#     experiment_args=EvalExperimentArgs(
+#         model_name_or_path=model_path_5lms_77obj,
+#         n_eval_epochs=1,
+#         min_lms_match=3,
+#     ),
+#     eval_dataloader_args=EnvironmentDataloaderPerObjectArgs(
+#         object_names=get_object_names_by_idx(
+#             0,
+#             77,
+#         ),
+#         object_init_sampler=RandomRotationObjectInitializer(),
+#     ),
+# )
 
 experiments = YcbExperiments(
     base_config_10distinctobj_dist_agent=base_config_10distinctobj_dist_agent,
-    base_config_10distinctobj_surf_agent=base_config_10distinctobj_surf_agent,
-    randrot_noise_10distinctobj_dist_agent=randrot_noise_10distinctobj_dist_agent,
-    randrot_noise_10distinctobj_dist_on_distm=randrot_noise_10distinctobj_dist_on_distm,
-    randrot_noise_10distinctobj_surf_agent=randrot_noise_10distinctobj_surf_agent,
-    randrot_10distinctobj_surf_agent=randrot_10distinctobj_surf_agent,
-    randrot_noise_10distinctobj_5lms_dist_agent=randrot_noise_10distinctobj_5lms_dist_agent,
-    base_10simobj_surf_agent=base_10simobj_surf_agent,
-    randrot_noise_10simobj_surf_agent=randrot_noise_10simobj_surf_agent,
-    randrot_noise_10simobj_dist_agent=randrot_noise_10simobj_dist_agent,
-    randomrot_rawnoise_10distinctobj_surf_agent=randomrot_rawnoise_10distinctobj_surf_agent,
-    base_10multi_distinctobj_dist_agent=base_10multi_distinctobj_dist_agent,
-    # ------------- Not yet evaluated -------------
-    surf_agent_unsupervised_10distinctobj=surf_agent_unsupervised_10distinctobj,
-    surf_agent_unsupervised_10distinctobj_noise=surf_agent_unsupervised_10distinctobj_noise,
-    surf_agent_unsupervised_10simobj=surf_agent_unsupervised_10simobj,
-    # ------------- long runs with all objects -------------
-    base_77obj_dist_agent=base_77obj_dist_agent,
-    base_77obj_surf_agent=base_77obj_surf_agent,
-    randrot_noise_77obj_surf_agent=randrot_noise_77obj_surf_agent,
-    randrot_noise_77obj_dist_agent=randrot_noise_77obj_dist_agent,
-    randrot_noise_77obj_5lms_dist_agent=randrot_noise_77obj_5lms_dist_agent,
+    # base_config_10distinctobj_surf_agent=base_config_10distinctobj_surf_agent,
+    # randrot_noise_10distinctobj_dist_agent=randrot_noise_10distinctobj_dist_agent,
+    # randrot_noise_10distinctobj_dist_on_distm=randrot_noise_10distinctobj_dist_on_distm,
+    # randrot_noise_10distinctobj_surf_agent=randrot_noise_10distinctobj_surf_agent,
+    # randrot_10distinctobj_surf_agent=randrot_10distinctobj_surf_agent,
+    # randrot_noise_10distinctobj_5lms_dist_agent=randrot_noise_10distinctobj_5lms_dist_agent,
+    # base_10simobj_surf_agent=base_10simobj_surf_agent,
+    # randrot_noise_10simobj_surf_agent=randrot_noise_10simobj_surf_agent,
+    # randrot_noise_10simobj_dist_agent=randrot_noise_10simobj_dist_agent,
+    # randomrot_rawnoise_10distinctobj_surf_agent=randomrot_rawnoise_10distinctobj_surf_agent,
+    # base_10multi_distinctobj_dist_agent=base_10multi_distinctobj_dist_agent,
+    # # ------------- Not yet evaluated -------------
+    # surf_agent_unsupervised_10distinctobj=surf_agent_unsupervised_10distinctobj,
+    # surf_agent_unsupervised_10distinctobj_noise=surf_agent_unsupervised_10distinctobj_noise,
+    # surf_agent_unsupervised_10simobj=surf_agent_unsupervised_10simobj,
+    # # ------------- long runs with all objects -------------
+    # base_77obj_dist_agent=base_77obj_dist_agent,
+    # base_77obj_surf_agent=base_77obj_surf_agent,
+    # randrot_noise_77obj_surf_agent=randrot_noise_77obj_surf_agent,
+    # randrot_noise_77obj_dist_agent=randrot_noise_77obj_dist_agent,
+    # randrot_noise_77obj_5lms_dist_agent=randrot_noise_77obj_5lms_dist_agent,
 )
 CONFIGS = asdict(experiments)

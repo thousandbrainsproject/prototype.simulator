@@ -60,7 +60,7 @@ Assumptions and notes:
 --- Testing is experimental and not yet tested.
 """
 
-logger = logging.getLogger(__name__)
+
 
 def single_train(config):
     os.makedirs(config["logging_config"]["output_dir"], exist_ok=True)
@@ -69,7 +69,7 @@ def single_train(config):
     address = simulators.get()
     config["dataset_args"]["env_init_args"]["address"] = str(address)
     with config["experiment_class"](config) as exp:
-        logger.info(f"{address}:{config['logging_config']['run_name']}: training")
+        print(f"{address}:{config['logging_config']['run_name']}: training")
         exp.train()
         simulators.put(address)
 
@@ -81,7 +81,7 @@ def single_evaluate(config):
     address = simulators.get()
     config["dataset_args"]["env_init_args"]["address"] = str(address)
     with config["experiment_class"](config) as exp:
-        logger.info(f"{address}:{config['logging_config']['run_name']}: evaluating")
+        print(f"{address}:{config['logging_config']['run_name']}: evaluating")
         exp.evaluate()
         simulators.put(address)
         if config["logging_config"]["log_parallel_wandb"]:

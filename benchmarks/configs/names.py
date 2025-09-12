@@ -58,25 +58,25 @@ class PretrainingExperiments:
 @dataclass
 class YcbExperiments:
     base_config_10distinctobj_dist_agent: dict
-    base_config_10distinctobj_surf_agent: dict
-    randrot_noise_10distinctobj_dist_agent: dict
-    randrot_noise_10distinctobj_dist_on_distm: dict
-    randrot_noise_10distinctobj_surf_agent: dict
-    randrot_10distinctobj_surf_agent: dict
-    randrot_noise_10distinctobj_5lms_dist_agent: dict
-    base_10simobj_surf_agent: dict
-    randrot_noise_10simobj_surf_agent: dict
-    randrot_noise_10simobj_dist_agent: dict
-    randomrot_rawnoise_10distinctobj_surf_agent: dict
-    base_10multi_distinctobj_dist_agent: dict
-    surf_agent_unsupervised_10distinctobj: dict
-    surf_agent_unsupervised_10distinctobj_noise: dict
-    surf_agent_unsupervised_10simobj: dict
-    base_77obj_dist_agent: dict
-    base_77obj_surf_agent: dict
-    randrot_noise_77obj_surf_agent: dict
-    randrot_noise_77obj_dist_agent: dict
-    randrot_noise_77obj_5lms_dist_agent: dict
+    # base_config_10distinctobj_surf_agent: dict
+    # randrot_noise_10distinctobj_dist_agent: dict
+    # randrot_noise_10distinctobj_dist_on_distm: dict
+    # randrot_noise_10distinctobj_surf_agent: dict
+    # randrot_10distinctobj_surf_agent: dict
+    # randrot_noise_10distinctobj_5lms_dist_agent: dict
+    # base_10simobj_surf_agent: dict
+    # randrot_noise_10simobj_surf_agent: dict
+    # randrot_noise_10simobj_dist_agent: dict
+    # randomrot_rawnoise_10distinctobj_surf_agent: dict
+    # base_10multi_distinctobj_dist_agent: dict
+    # surf_agent_unsupervised_10distinctobj: dict
+    # surf_agent_unsupervised_10distinctobj_noise: dict
+    # surf_agent_unsupervised_10simobj: dict
+    # base_77obj_dist_agent: dict
+    # base_77obj_surf_agent: dict
+    # randrot_noise_77obj_surf_agent: dict
+    # randrot_noise_77obj_dist_agent: dict
+    # randrot_noise_77obj_5lms_dist_agent: dict
 
 
 @dataclass

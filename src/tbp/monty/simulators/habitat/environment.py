@@ -14,7 +14,6 @@ from dataclasses import asdict, dataclass
 from typing import Type
 
 import grpc
-import magnum as mn
 import numpy as np
 import quaternion as qt
 
@@ -61,12 +60,6 @@ from tbp.monty.frameworks.utils.dataclass_utils import (
     create_dataclass_args,
     is_dataclass_instance,
 )
-from tbp.monty.simulators.habitat import (
-    HabitatAgent,
-    HabitatSim,
-    MultiSensorAgent,
-    SingleSensorAgent,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -79,33 +72,8 @@ __all__ = [
 ]
 
 # Create agent and object configuration helper dataclasses
-
-# ObjectConfig dataclass based on the arguments of `HabitatSim.add_object` method
-ObjectConfig = create_dataclass_args("ObjectConfig", HabitatSim.add_object)
-ObjectConfig.__module__ = __name__
-
-
-# FIXME: Using HabitatAgent constructor as base class will cause the `make_dataclass`
-#        function to throw the following exception:
-#        `TypeError: non-default argument 'sensor_id' follows default argument`
-#        For now, we will just use plain empty class for HabitaAgentArgs
-#
-# HabitatAgentArgs = create_dataclass_args("HabitatAgentArgs", HabitatAgent.__init__)
 class HabitatAgentArgs:
     pass
-
-
-# SingleSensorAgentArgs dataclass based on constructor args
-SingleSensorAgentArgs = create_dataclass_args(
-    "SingleSensorAgentArgs", SingleSensorAgent.__init__, HabitatAgentArgs
-)
-SingleSensorAgentArgs.__module__ = __name__
-
-# MultiSensorAgentArgs dataclass based on constructor args
-MultiSensorAgentArgs = create_dataclass_args(
-    "MultiSensorAgentArgs", MultiSensorAgent.__init__, HabitatAgentArgs
-)
-MultiSensorAgentArgs.__module__ = __name__
 
 
 @dataclass
@@ -152,10 +120,12 @@ def deserialize_obs_and_state(
 
     state = ProprioceptiveState()
     for pb_agent_state in proprioceptive_state.agent_states:
-        position = mn.Vector3d(
-            pb_agent_state.position.x,
-            pb_agent_state.position.y,
-            pb_agent_state.position.z,
+        position = np.array(
+            [
+                pb_agent_state.position.x,
+                pb_agent_state.position.y,
+                pb_agent_state.position.z,
+            ]
         )
         rotation = qt.quaternion(
             pb_agent_state.rotation.w,
@@ -170,10 +140,12 @@ def deserialize_obs_and_state(
         )
         sensors = {}
         for pb_sensor_state in pb_agent_state.sensor_states:
-            position = mn.Vector3d(
-                pb_sensor_state.position.x,
-                pb_sensor_state.position.y,
-                pb_sensor_state.position.z,
+            position = np.array(
+                [
+                    pb_sensor_state.position.x,
+                    pb_sensor_state.position.y,
+                    pb_sensor_state.position.z,
+                ]
             )
             rotation = qt.quaternion(
                 pb_sensor_state.rotation.w,
@@ -210,7 +182,7 @@ class HabitatEnvironment(EmbodiedEnvironment):
 
     def __init__(
         self,
-        agents: list[dict | AgentConfig],
+        agents: list,
         objects: list[ObjectParams] | None = None,
         scene_id: str | None = None,
         seed: int = 42,
