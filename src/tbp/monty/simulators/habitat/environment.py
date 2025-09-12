@@ -215,6 +215,7 @@ class HabitatEnvironment(EmbodiedEnvironment):
         scene_id: str | None = None,
         seed: int = 42,
         data_path: str | None = None,
+        address: str | None = None,
     ):
         super().__init__()
         # self._agents = []
@@ -227,7 +228,8 @@ class HabitatEnvironment(EmbodiedEnvironment):
         #     agent = agent_type(**args)
         #     self._agents.append(agent)
 
-        channel = grpc.insecure_channel("localhost:50051")
+        # channel = grpc.insecure_channel("localhost:50051")
+        channel = grpc.insecure_channel(address)
         self._env: protocol_pb2_grpc.SimulatorServiceStub = (
             protocol_pb2_grpc.SimulatorServiceStub(channel)
         )

@@ -9,7 +9,9 @@
 # https://opensource.org/licenses/MIT.
 
 import copy
+import logging
 import os
+from multiprocessing import Manager, Queue
 import shutil
 import time
 from pathlib import Path
@@ -58,19 +60,30 @@ Assumptions and notes:
 --- Testing is experimental and not yet tested.
 """
 
+logger = logging.getLogger(__name__)
 
 def single_train(config):
     os.makedirs(config["logging_config"]["output_dir"], exist_ok=True)
+    simulators = config["simulators"]
+    del config["simulators"]
+    address = simulators.get()
+    config["dataset_args"]["env_init_args"]["address"] = str(address)
     with config["experiment_class"](config) as exp:
-        print("---------training---------")
+        logger.info(f"{address}:{config['logging_config']['run_name']}: training")
         exp.train()
+        simulators.put(address)
 
 
 def single_evaluate(config):
     os.makedirs(config["logging_config"]["output_dir"], exist_ok=True)
+    simulators = config["simulators"]
+    del config["simulators"]
+    address = simulators.get()
+    config["dataset_args"]["env_init_args"]["address"] = str(address)
     with config["experiment_class"](config) as exp:
-        print("---------evaluating---------")
+        logger.info(f"{address}:{config['logging_config']['run_name']}: evaluating")
         exp.evaluate()
+        simulators.put(address)
         if config["logging_config"]["log_parallel_wandb"]:
             eval_stats = get_episode_stats(exp, "eval")
             return eval_stats
@@ -421,7 +434,7 @@ def run_episodes_parallel(
 
 
 def generate_parallel_train_configs(
-    exp: Mapping, experiment_name: str
+    exp: Mapping, experiment_name: str, simulators: Queue
 ) -> List[Mapping]:
     """Generate configs for training episodes in parallel.
 
@@ -450,6 +463,7 @@ def generate_parallel_train_configs(
 
     for obj in object_names:
         obj_config = copy.deepcopy(exp)
+        obj_config["simulators"] = simulators
 
         # No eval
         obj_config["experiment_args"].update(
@@ -478,7 +492,9 @@ def generate_parallel_train_configs(
     return new_configs
 
 
-def generate_parallel_eval_configs(exp: Mapping, experiment_name: str) -> List[Mapping]:
+def generate_parallel_eval_configs(
+    exp: Mapping, experiment_name: str, simulators: Queue
+) -> List[Mapping]:
     """Generate configs for evaluation episodes in parallel.
 
     Create a config for each object and rotation in the experiment. Unlike with parallel
@@ -508,6 +524,7 @@ def generate_parallel_eval_configs(exp: Mapping, experiment_name: str) -> List[M
     while epoch_count <= n_epochs:
         for obj in object_names:
             new_config = copy.deepcopy(exp)
+            new_config["simulators"] = simulators
             new_config["experiment_args"]["seed"] = start_seed + episode_count
 
             # No training
@@ -629,42 +646,70 @@ def main(
     if len(exp["logging_config"]["run_name"]) > 0:
         experiment = exp["logging_config"]["run_name"]
 
-    # Simplifying assumption: let's only deal with the main type of exp which involves
-    # per object dataloaders, otherwise hard to figure out what all goes into an exp
-    if exp["experiment_args"]["do_train"]:
-        assert issubclass(
-            exp["train_dataloader_class"], ED.EnvironmentDataLoaderPerObject
-        ), "parallel experiments only work (for now) with per object dataloaders"
+    with Manager() as manager:
+        simulators = manager.Queue()
+        simulators.put("localhost:50051")
+        simulators.put("localhost:50052")
+        simulators.put("localhost:50053")
+        simulators.put("localhost:50054")
+        simulators.put("localhost:50055")
+        simulators.put("localhost:50056")
+        simulators.put("localhost:50057")
+        simulators.put("localhost:50058")
+        simulators.put("localhost:50059")
+        simulators.put("localhost:50060")
+        simulators.put("localhost:50061")
+        simulators.put("localhost:50062")
+        simulators.put("localhost:50063")
+        simulators.put("localhost:50064")
+        simulators.put("localhost:50065")
+        simulators.put("localhost:50066")
+        simulators.put("localhost:50067")
+        simulators.put("localhost:50068")
+        simulators.put("localhost:50069")
+        simulators.put("localhost:50070")
+        simulators.put("localhost:50071")
+        simulators.put("localhost:50072")
+        simulators.put("localhost:50073")
+        simulators.put("localhost:50074")
+        simulators.put("localhost:50075")
 
-        train_configs = generate_parallel_train_configs(exp, experiment)
-        if print_cfg:
-            print("Printing configs for spot checking")
-            for cfg in train_configs:
-                print_config(cfg)
-        else:
-            run_episodes_parallel(
-                train_configs,
-                num_parallel,
-                experiment,
-                train=True,
-                is_unittest=is_unittest,
-            )
+        # Simplifying assumption: let's only deal with the main type of exp which involves
+        # per object dataloaders, otherwise hard to figure out what all goes into an exp
+        if exp["experiment_args"]["do_train"]:
+            assert issubclass(
+                exp["train_dataloader_class"], ED.EnvironmentDataLoaderPerObject
+            ), "parallel experiments only work (for now) with per object dataloaders"
 
-    if exp["experiment_args"]["do_eval"]:
-        assert issubclass(
-            exp["eval_dataloader_class"], ED.EnvironmentDataLoaderPerObject
-        ), "parallel experiments only work (for now) with per object dataloaders"
+            train_configs = generate_parallel_train_configs(exp, experiment, simulators)
+            if print_cfg:
+                print("Printing configs for spot checking")
+                for cfg in train_configs:
+                    print_config(cfg)
+            else:
+                run_episodes_parallel(
+                    train_configs,
+                    num_parallel,
+                    experiment,
+                    train=True,
+                    is_unittest=is_unittest,
+                )
 
-        eval_configs = generate_parallel_eval_configs(exp, experiment)
-        if print_cfg:
-            print("Printing configs for spot checking")
-            for cfg in eval_configs:
-                print_config(cfg)
-        else:
-            run_episodes_parallel(
-                eval_configs,
-                num_parallel,
-                experiment,
-                train=False,
-                is_unittest=is_unittest,
-            )
+        if exp["experiment_args"]["do_eval"]:
+            assert issubclass(
+                exp["eval_dataloader_class"], ED.EnvironmentDataLoaderPerObject
+            ), "parallel experiments only work (for now) with per object dataloaders"
+
+            eval_configs = generate_parallel_eval_configs(exp, experiment, simulators)
+            if print_cfg:
+                print("Printing configs for spot checking")
+                for cfg in eval_configs:
+                    print_config(cfg)
+            else:
+                run_episodes_parallel(
+                    eval_configs,
+                    num_parallel,
+                    experiment,
+                    train=False,
+                    is_unittest=is_unittest,
+                )

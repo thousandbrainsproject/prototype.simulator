@@ -84,7 +84,7 @@ class EnvInitArgs:
             ).as_dict()
         ]
     )
-    scene_id: Union[int, None] = field(default=None)
+    scene_id: Union[str, None] = field(default=None)
     seed: int = field(default=42)
     data_path: str = os.path.join(os.environ["MONTY_DATA"], "habitat/objects/ycb")
 
