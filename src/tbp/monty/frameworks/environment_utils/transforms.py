@@ -15,7 +15,7 @@ import numpy as np
 import quaternion as qt
 import scipy
 
-from tbp.monty.frameworks.models.abstract_monty_classes import SensorID
+from tbp.monty.frameworks.models.abstract_monty_classes import Observations, SensorID
 from tbp.monty.frameworks.models.motor_system_state import ProprioceptiveState
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class MissingToMaxDepth:
         self.threshold = threshold
         self.needs_rng = False
 
-    def __call__(self, observation, state=None):
+    def __call__(self, observation: Observations, state=None):
         """Replace missing depth values with max_depth.
 
         Args:
@@ -63,8 +63,10 @@ class MissingToMaxDepth:
         """
         # loop over sensor modules
         for sm in observation[self.agent_id].keys():
-            m = np.where(observation[self.agent_id][sm]["depth"] <= self.threshold)
-            observation[self.agent_id][sm]["depth"][m] = self.max_depth
+            m = np.where(observation[self.agent_id][sm].depth <= self.threshold)
+            depth = observation[self.agent_id][sm].depth.copy()
+            depth[m] = self.max_depth
+            observation[self.agent_id][sm].depth = depth
         return observation
 
 
@@ -319,8 +321,8 @@ class DepthTo3DLocations:
         self.depth_clip_sensors = depth_clip_sensors
 
     def __call__(
-        self, observations: dict, state: ProprioceptiveState | None = None
-    ) -> dict:
+        self, observations: Observations, state: ProprioceptiveState | None = None
+    ) -> Observations:
         """Apply the depth-to-3D-locations transform to sensor observations.
 
         Applies spatial transforms to the observations and generates a mask used
@@ -393,13 +395,13 @@ class DepthTo3DLocations:
         """
         for i, sensor_id in enumerate(self.sensor_ids):
             agent_obs = observations[self.agent_id][sensor_id]
-            depth_patch = agent_obs["depth"]
+            depth_patch = agent_obs.depth
 
             # We need a semantic map that masks off-object pixels. We can use the
             # ground-truth semantic map if it's available. Otherwise, we generate one
             # from the depth map and (temporarily) add it to the observation dict.
             if "semantic" in agent_obs.keys():
-                semantic_patch = agent_obs["semantic"]
+                semantic_patch = agent_obs.semantic
             else:
                 # The generated map uses depth observations to determine whether
                 # pixels are on object using 1 meter as a threshold since
@@ -430,7 +432,7 @@ class DepthTo3DLocations:
                 # self.use_semantic_sensor is not commonly used at present, if ever.
                 # self.depth_clip_sensors implies a surface agent, and
                 # self.use_semantic_sensor implies multi-object experiments.
-                surface_patch = agent_obs["semantic"]
+                surface_patch = agent_obs.semantic
             else:
                 surface_patch = self.get_surface_from_depth(
                     depth_patch,
@@ -479,7 +481,7 @@ class DepthTo3DLocations:
 
                 # Add sensor-to-world coordinate frame transform, used for surface
                 # normal extraction. View direction is the third column of the matrix.
-                observations[self.agent_id][sensor_id]["world_camera"] = world_camera
+                observations[self.agent_id][sensor_id].world_camera = world_camera
 
             # Extract 3D coordinates of detected objects (semantic_id != 0)
             semantic = surface_patch.reshape(1, -1)
@@ -490,9 +492,9 @@ class DepthTo3DLocations:
 
                 # Add point-cloud data expressed in sensor coordinate frame. Used for
                 # surface normal extraction
-                observations[self.agent_id][sensor_id]["sensor_frame_data"] = (
-                    sensor_frame_data
-                )
+                observations[self.agent_id][
+                    sensor_id
+                ].sensor_frame_data = sensor_frame_data
             else:
                 detected = semantic.any(axis=0)
                 xyz = xyz.transpose(1, 0)
@@ -501,7 +503,7 @@ class DepthTo3DLocations:
 
             # Add transformed observation to existing dict. We don't need to create
             # a deepcopy because we are appending a new observation
-            observations[self.agent_id][sensor_id]["semantic_3d"] = semantic_3d
+            observations[self.agent_id][sensor_id].semantic_3d = semantic_3d
 
         return observations
 

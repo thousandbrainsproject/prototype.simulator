@@ -20,12 +20,12 @@ Modality = NewType("Modality", str)
 class SensorObservations(Dict[Modality, npt.NDArray[Any]]):
     """Observations from a sensor."""
 
-    rgba: npt.NDArray[np.int_]  # TODO: Verify specific type
-    depth: npt.NDArray[np.float64]  # TODO: Verify specific type
+    rgba: npt.NDArray[np.uint8]
+    depth: npt.NDArray[np.float32]
     semantic: npt.NDArray[np.int_]  # TODO: Verify specific type
     semantic_3d: npt.NDArray[np.int_]  # TODO: Verify specific type
     sensor_frame_data: npt.NDArray[np.int_]  # TODO: Verify specific type
-    world_camera: npt.NDArray[np.int_]  # TODO: Verify specific type
+    world_camera: npt.NDArray[np.float64]
     pixel_loc: npt.NDArray[np.float64]  # TODO: Verify specific type
     raw: npt.NDArray[np.uint8]
 

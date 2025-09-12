@@ -36,7 +36,11 @@ from tbp.monty.frameworks.environments.embodied_environment import (
     ObjectID,
     SemanticID,
 )
-from tbp.monty.frameworks.models.abstract_monty_classes import AgentID, Observations
+from tbp.monty.frameworks.models.abstract_monty_classes import (
+    AgentID,
+    Observations,
+    SensorID,
+)
 from tbp.monty.frameworks.models.motor_policies import (
     GetGoodView,
     InformedPolicy,
@@ -46,6 +50,7 @@ from tbp.monty.frameworks.models.motor_policies import (
 )
 from tbp.monty.frameworks.models.motor_system import MotorSystem
 from tbp.monty.frameworks.models.motor_system_state import (
+    AgentState,
     MotorSystemState,
     ProprioceptiveState,
 )
@@ -518,7 +523,9 @@ class InformedEnvironmentDataLoader(EnvironmentDataLoaderPerObject):
 
     def pre_episode(self):
         super().pre_episode()
-        if self.dataset.env._agents[0].action_space_type != "surface_agent":
+        # if self.dataset.env._agents[0].action_space_type != "surface_agent":
+        # FIXME: DEMO HARDCODING
+        if "distant_agent":
             on_target_object = self.get_good_view_with_patch_refinement()
             if self.num_distractors == 0:
                 # Only perform this check if we aren't doing multi-object experiments.
@@ -653,17 +660,19 @@ class InformedEnvironmentDataLoader(EnvironmentDataLoaderPerObject):
         # Store the current location and orientation of the agent
         # If the hypothesis-guided jump is unsuccesful (e.g. to empty space,
         # or inside an object, we return here)
-        pre_jump_state = self.motor_system._state[self.motor_system._policy.agent_id]
+        pre_jump_state: AgentState = self.motor_system._state[
+            self.motor_system._policy.agent_id
+        ]
 
         # Check that all sensors have identical rotations - this is because actions
         # currently update them all together; if this changes, the code needs
         # to be updated; TODO make this its own method
-        for ii, current_sensor in enumerate(pre_jump_state["sensors"].keys()):
+        for ii, current_sensor in enumerate(pre_jump_state.sensors.keys()):
             if ii == 0:
                 first_sensor = current_sensor
             assert np.all(
-                pre_jump_state["sensors"][current_sensor]["rotation"]
-                == pre_jump_state["sensors"][first_sensor]["rotation"]
+                pre_jump_state.sensors[current_sensor].rotation
+                == pre_jump_state.sensors[first_sensor].rotation
             ), "Sensors are not identical in pose"
 
         # TODO In general what would be best/cleanest way of routing information,
@@ -765,7 +774,7 @@ class InformedEnvironmentDataLoader(EnvironmentDataLoaderPerObject):
         else:
             self.get_good_view_with_patch_refinement()
 
-    def handle_failed_jump(self, pre_jump_state, first_sensor):
+    def handle_failed_jump(self, pre_jump_state: AgentState, first_sensor: SensorID):
         """Deal with the results of a failed hypothesis-testing jump.
 
         A failed jump is "off-object", i.e. the object is not perceived by the sensor.
@@ -775,35 +784,35 @@ class InformedEnvironmentDataLoader(EnvironmentDataLoaderPerObject):
 
         set_agent_pose = SetAgentPose(
             agent_id=self.motor_system._policy.agent_id,
-            location=pre_jump_state["position"],
-            rotation_quat=pre_jump_state["rotation"],
+            location=pre_jump_state.position,
+            rotation_quat=pre_jump_state.rotation,
         )
         # All sensors are updated globally by actions, and are therefore
         # identical
         set_sensor_rotation = SetSensorRotation(
             agent_id=self.motor_system._policy.agent_id,
-            rotation_quat=pre_jump_state["sensors"][first_sensor]["rotation"],
+            rotation_quat=pre_jump_state.sensors[first_sensor].rotation,
         )
         _, _ = self.dataset[set_agent_pose]
         self._observation, proprioceptive_state = self.dataset[set_sensor_rotation]
 
         assert np.all(
-            proprioceptive_state[self.motor_system._policy.agent_id]["position"]
-            == pre_jump_state["position"]
+            proprioceptive_state[self.motor_system._policy.agent_id].position
+            == pre_jump_state.position
         ), "Failed to return agent to location"
         assert np.all(
-            proprioceptive_state[self.motor_system._policy.agent_id]["rotation"]
-            == pre_jump_state["rotation"]
+            proprioceptive_state[self.motor_system._policy.agent_id].rotation
+            == pre_jump_state.rotation
         ), "Failed to return agent to orientation"
 
-        for current_sensor in proprioceptive_state[self.motor_system._policy.agent_id][
-            "sensors"
-        ].keys():
+        for current_sensor in proprioceptive_state[
+            self.motor_system._policy.agent_id
+        ].sensors.keys():
             assert np.all(
-                proprioceptive_state[self.motor_system._policy.agent_id]["sensors"][
-                    current_sensor
-                ]["rotation"]
-                == pre_jump_state["sensors"][current_sensor]["rotation"]
+                proprioceptive_state[self.motor_system._policy.agent_id]
+                .sensors[current_sensor]
+                .rotation
+                == pre_jump_state.sensors[current_sensor].rotation
             ), "Failed to return sensor to orientation"
 
         self.motor_system._state = MotorSystemState(proprioceptive_state)

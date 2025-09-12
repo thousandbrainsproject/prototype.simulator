@@ -15,7 +15,11 @@ import quaternion
 from scipy.spatial.transform import Rotation
 from skimage.color import rgb2hsv
 
-from tbp.monty.frameworks.models.abstract_monty_classes import SensorID, SensorModule
+from tbp.monty.frameworks.models.abstract_monty_classes import (
+    SensorID,
+    SensorModule,
+    SensorObservations,
+)
 from tbp.monty.frameworks.models.motor_system_state import (
     AgentState,
     SensorState,
@@ -222,7 +226,9 @@ class DetailedLoggingSM(SensorModule):
 
         return features, morphological_features, invalid_signals
 
-    def observations_to_comunication_protocol(self, data, on_object_only=True) -> State:
+    def observations_to_comunication_protocol(
+        self, data: SensorObservations, on_object_only=True
+    ) -> State:
         """Turn raw observations into instance of State class following CMP.
 
         Args:
@@ -236,11 +242,11 @@ class DetailedLoggingSM(SensorModule):
         Returns:
             Features and morphological features.
         """
-        obs_3d = data["semantic_3d"]
-        sensor_frame_data = data["sensor_frame_data"]
-        world_camera = data["world_camera"]
-        rgba_feat = data["rgba"]
-        depth_feat = data["depth"].reshape(data["depth"].size, 1).astype(np.float64)
+        obs_3d = data.semantic_3d
+        sensor_frame_data = data.sensor_frame_data
+        world_camera = data.world_camera
+        rgba_feat = data.rgba
+        depth_feat = data.depth.reshape(data.depth.size, 1).astype(np.float64)
         # Assuming squared patches
         center_row_col = rgba_feat.shape[0] // 2
         # Calculate center ID for flat semantic obs

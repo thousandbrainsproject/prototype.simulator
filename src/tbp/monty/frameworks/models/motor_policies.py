@@ -51,7 +51,11 @@ from tbp.monty.frameworks.actions.actions import (
     TurnRight,
     VectorXYZ,
 )
-from tbp.monty.frameworks.models.abstract_monty_classes import AgentID, SensorID
+from tbp.monty.frameworks.models.abstract_monty_classes import (
+    AgentID,
+    Observations,
+    SensorID,
+)
 from tbp.monty.frameworks.models.motor_system_state import AgentState, MotorSystemState
 from tbp.monty.frameworks.utils.spatial_arithmetics import get_angle_beefed_up
 from tbp.monty.frameworks.utils.transform_utils import scipy_to_numpy_quat
@@ -399,7 +403,9 @@ class PositioningProcedure(BasePolicy):
     """
 
     @staticmethod
-    def depth_at_center(agent_id: str, observation: Any, sensor_id: str) -> float:
+    def depth_at_center(
+        agent_id: AgentID, observation: Observations, sensor_id: SensorID
+    ) -> float:
         """Determine the depth of the central pixel for the sensor.
 
         Args:
@@ -412,15 +418,15 @@ class PositioningProcedure(BasePolicy):
         """
         # TODO: A lot of assumptions are made here about the shape of the observation.
         #       This should be made robust.
-        observation_shape = observation[agent_id][sensor_id]["depth"].shape
-        return observation[agent_id][sensor_id]["depth"][
+        observation_shape = observation[agent_id][sensor_id].depth.shape
+        return observation[agent_id][sensor_id].depth[
             observation_shape[0] // 2, observation_shape[1] // 2
         ]
 
     @abc.abstractmethod
     def positioning_call(
         self,
-        observation: Mapping,
+        observation: Observations,
         state: Optional[MotorSystemState] = None,
     ) -> PositioningProcedureResult:
         """Return a list of actions to position the agent in the scene.
@@ -466,7 +472,7 @@ class GetGoodView(PositioningProcedure):
         desired_object_distance: float,
         good_view_percentage: float,
         multiple_objects_present: bool,
-        sensor_id: str,
+        sensor_id: SensorID,
         target_semantic_id: int,
         allow_translation: bool = True,
         max_orientation_attempts: int = 1,
@@ -598,7 +604,7 @@ class GetGoodView(PositioningProcedure):
 
         return relative_location
 
-    def is_on_target_object(self, observation: Mapping) -> bool:
+    def is_on_target_object(self, observation: Observations) -> bool:
         """Check if a sensor is on the target object.
 
         Args:
@@ -608,8 +614,8 @@ class GetGoodView(PositioningProcedure):
             Whether the sensor is on the target object.
         """
         # Reconstruct the 2D semantic/surface map embedded in 'semantic_3d'.
-        image_shape = observation[self.agent_id][self._sensor_id]["depth"].shape[0:2]
-        semantic_3d = observation[self.agent_id][self._sensor_id]["semantic_3d"]
+        image_shape = observation[self.agent_id][self._sensor_id].depth.shape[0:2]
+        semantic_3d = observation[self.agent_id][self._sensor_id].semantic_3d
         semantic = semantic_3d[:, 3].reshape(image_shape).astype(int)
         if not self._multiple_objects_present:
             semantic[semantic > 0] = self._target_semantic_id
@@ -619,7 +625,7 @@ class GetGoodView(PositioningProcedure):
         on_target_object = semantic[y_mid, x_mid] == self._target_semantic_id
         return on_target_object
 
-    def move_close_enough(self, observation: Mapping) -> Action | None:
+    def move_close_enough(self, observation: Observations) -> Action | None:
         """Move closer to the object until we are close enough.
 
         Args:
@@ -633,8 +639,8 @@ class GetGoodView(PositioningProcedure):
             ValueError: If the object is not visible.
         """
         # Reconstruct 2D semantic map.
-        depth_image = observation[self.agent_id][self._sensor_id]["depth"]
-        semantic_3d = observation[self.agent_id][self._sensor_id]["semantic_3d"]
+        depth_image = observation[self.agent_id][SensorID(self._sensor_id)].depth
+        semantic_3d = observation[self.agent_id][SensorID(self._sensor_id)].semantic_3d
         semantic_image = semantic_3d[:, 3].reshape(depth_image.shape).astype(int)
 
         if not self._multiple_objects_present:
@@ -690,7 +696,7 @@ class GetGoodView(PositioningProcedure):
             return None
 
     def orient_to_object(
-        self, observation: Mapping, state: Optional[MotorSystemState] = None
+        self, observation: Observations, state: Optional[MotorSystemState] = None
     ) -> List[Action]:
         """Rotate sensors so that they are centered on the object using the view finder.
 
@@ -707,9 +713,9 @@ class GetGoodView(PositioningProcedure):
             the target object.
         """
         # Reconstruct 2D semantic map.
-        depth_image = observation[self.agent_id][self._sensor_id]["depth"]
+        depth_image = observation[self.agent_id][self._sensor_id].depth
         obs_dim = depth_image.shape[0:2]
-        sem3d_obs = observation[self.agent_id][self._sensor_id]["semantic_3d"]
+        sem3d_obs = observation[self.agent_id][self._sensor_id].semantic_3d
         sem_obs = sem3d_obs[:, 3].reshape(obs_dim).astype(int)
 
         if not self._multiple_objects_present:
@@ -731,7 +737,7 @@ class GetGoodView(PositioningProcedure):
 
     def positioning_call(
         self,
-        observation: Mapping,
+        observation: Observations,
         state: Optional[MotorSystemState] = None,
     ) -> PositioningProcedureResult:
         if (

@@ -246,7 +246,9 @@ class DefaultObjectInitializer(ObjectInitializer):
         q = Rotation.from_euler("xyz", euler_rotation, degrees=True).as_quat()
         quat_rotation = scipy_to_numpy_quat(q)
         return ObjectParams(
-            rotation=QuaternionWXYZ(quat_rotation),
+            rotation=QuaternionWXYZ(
+                (quat_rotation.w, quat_rotation.x, quat_rotation.y, quat_rotation.z)
+            ),
             euler_rotation=EulerAnglesXYZ(euler_rotation),
             quat_rotation=QuaternionXYZW((q[0], q[1], q[2], q[3])),
             position=VectorXYZ((self.rng.uniform(-0.5, 0.5), 0.0, 0.0)),
@@ -296,7 +298,9 @@ class PredefinedObjectInitializer(DefaultObjectInitializer):
         ).as_quat()
         quat_rotation = scipy_to_numpy_quat(q)
         return ObjectParams(
-            rotation=QuaternionWXYZ(quat_rotation),
+            rotation=QuaternionWXYZ(
+                (quat_rotation.w, quat_rotation.x, quat_rotation.y, quat_rotation.z)
+            ),
             euler_rotation=EulerAnglesXYZ(
                 self.rotations[mod_counter % len(self.rotations)]
             ),
@@ -339,21 +343,17 @@ class RandomRotationObjectInitializer(DefaultObjectInitializer):
     def __init__(
         self, position: VectorXYZ | None = None, scale: VectorXYZ | None = None
     ):
-        if position is not None:
-            self.position = position
-        else:
-            self.position = VectorXYZ((0.0, 1.5, 0.0))
-        if scale is not None:
-            self.scale = scale
-        else:
-            self.scale = VectorXYZ((1.0, 1.0, 1.0))
+        self.position = position if position is not None else VectorXYZ((0.0, 1.5, 0.0))
+        self.scale = scale if scale is not None else VectorXYZ((1.0, 1.0, 1.0))
 
     def __call__(self) -> ObjectParams:
         euler_rotation = self.rng.uniform(0, 360, 3)
         q = Rotation.from_euler("xyz", euler_rotation, degrees=True).as_quat()
         quat_rotation = scipy_to_numpy_quat(q)
         return ObjectParams(
-            rotation=QuaternionWXYZ(quat_rotation),
+            rotation=QuaternionWXYZ(
+                (quat_rotation.w, quat_rotation.x, quat_rotation.y, quat_rotation.z)
+            ),
             euler_rotation=EulerAnglesXYZ(euler_rotation),
             quat_rotation=QuaternionXYZW((q[0], q[1], q[2], q[3])),
             position=self.position,
