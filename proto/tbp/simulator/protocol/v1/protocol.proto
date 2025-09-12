@@ -42,12 +42,102 @@ message AddObjectResponse {
   optional uint64 semantic_id = 2;
 }
 
-message Action {
+message LookDownAction {
   string agent_id = 1;
+  double rotation_degrees = 2;
+  double constraint_degrees = 3;
+}
+
+message LookUpAction {
+  string agent_id = 1;
+  double rotation_degrees = 2;
+  double constraint_degrees = 3;
+}
+
+message MoveForwardAction {
+  string agent_id = 1;
+  double distance = 2;
+}
+
+message MoveTangentiallyAction {
+  string agent_id = 1;
+  double distance = 2;
+  VectorXYZ direction = 3;
+}
+
+message OrientHorizontalAction {
+  string agent_id = 1;
+  double rotation_degrees = 2;
+  double left_distance = 3;
+  double forward_distance = 4;
+}
+
+message OrientVerticalAction {
+  string agent_id = 1;
+  double rotation_degrees = 2;
+  double down_distance = 3;
+  double forward_distance = 4;
+}
+
+message SetAgentPitchAction {
+  string agent_id = 1;
+  double pitch_degrees = 2;
+}
+
+message SetAgentPoseAction {
+  string agent_id = 1;
+  VectorXYZ location = 2;
+  QuaternionWXYZ rotation = 3;
+}
+
+message SetSensorPitchAction {
+  string agent_id = 1;
+  double pitch_degrees = 2;
+}
+
+message SetSensorPoseAction {
+  string agent_id = 1;
+  VectorXYZ location = 2;
+  QuaternionWXYZ rotation = 3;
+}
+
+message SetSensorRotationAction {
+  string agent_id = 1;
+  QuaternionWXYZ rotation = 2;
+}
+
+message SetYawAction {
+  string agent_id = 1;
+  double rotation_degrees = 2;
+}
+
+message TurnLeftAction {
+  string agent_id = 1;
+  double rotation_degrees = 2;
+}
+
+message TurnRightAction {
+  string agent_id = 1;
+  double rotation_degrees = 3;
 }
 
 message StepRequest {
-  Action action = 1;
+  oneof action {
+    LookDownAction look_down = 1;
+    LookUpAction look_up = 2;
+    MoveForwardAction move_forward = 3;
+    MoveTangentiallyAction move_tangentially = 4;
+    OrientHorizontalAction orient_horizontal = 5;
+    OrientVerticalAction orient_vertical = 6;
+    SetAgentPitchAction set_agent_pitch = 7;
+    SetAgentPoseAction set_agent_pose = 8;
+    SetSensorPitchAction set_sensor_pitch = 9;
+    SetSensorPoseAction set_sensor_pose = 10;
+    SetSensorRotationAction set_sensor_rotation = 11;
+    SetYawAction set_yaw = 12;
+    TurnLeftAction turn_left = 13;
+    TurnRightAction turn_right = 14;
+  }
 }
 
 message Observations {
